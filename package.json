@@ -1,0 +1,27 @@
+{
+  "name": "quarrel-api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./dist/server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "express": "~4.16.1",
+    "express-jwt": "^6.0.0",
+    "gridfs-stream": "^1.1.1",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^5.12.0",
+    "morgan": "~1.9.1",
+    "multer": "^1.4.2",
+    "multer-gridfs-storage": "^4.2.0",
+    "passport": "^0.4.1",
+    "passport-local": "^1.0.0",
+    "rxjs": "^6.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.11",
+    "@types/node": "^14.14.33"
+  }
+}

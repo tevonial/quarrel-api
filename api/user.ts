@@ -52,21 +52,98 @@ function countAuthorRefs<DocType>(model: mongoose.Model<any, {}>, name: string, 
 }
 
 function getAllUsers(req, res, next) {
-    User.find({}, 'name fullName role email username', {}, (err, users) => {
+    interface UserQuery {
+        search: string;
+        searchBy: string;
+    }
+
+    interface PageOptions {
+        index: number;
+        pageSize: number;
+    }
+
+    interface UsersResponse {
+        totalUsers: number;
+        index: number;
+        pageSize: number;
+        users: LeanDocument<UserDoc>[];
+    }
+
+    // Destructure postQuery
+    let search, searchBy;
+    const searchByTypes = ['username', 'fullName'];
+
+    try {
+        ({search, searchBy} = <UserQuery>JSON.parse(decodeURIComponent(req.query.userQuery)));
+        if (typeof (search) !== 'string') {
+            search = "";
+        }
+        if (!searchByTypes.includes(searchBy)) {
+            searchBy = searchByTypes[0];
+        }
+    } catch (e) {
+        console.log('catched while trying to destructure postQuery');
+        ({search, searchBy} = {search: "", searchBy: searchByTypes[0]});
+    }
+
+    // Destructure pageOptions
+    let index, pageSize;
+
+    try {
+        ({index, pageSize} = <PageOptions>JSON.parse(decodeURIComponent(req.query.pageOptions)));
+    }
+    catch (e) {
+        console.log('catched while trying to destructure pageOptions');
+        ({index, pageSize} = {index: 0, pageSize: 5});
+    }
+
+    const skip = index * pageSize;
+    const limit = pageSize;
+
+    console.log(`searching ${search} by ${searchBy}`);
+
+    User.aggregate([{
+        $project: {
+            name: 1, email: 1, username: 1, role: 1,
+            fullName: {
+                $concat: ['$name.first', ' ' , '$name.last']
+            }
+        }
+    }, {
+        $match: {
+            [searchBy]: {
+                $regex: search,
+                $options: 'i'
+            }
+        },
+    }, {
+        $sort: {
+            username: 1
+        }
+    }]).exec((err, users) => {
         if (err)    return next(err);
 
         let promises: ReturnType<typeof countAuthorRefs>[] = new Array<ReturnType<typeof countAuthorRefs>>();
-        let response: LeanDocument<UserDoc>[] = new Array<LeanDocument<UserDoc>>();
+        let pagedUsers: LeanDocument<UserDoc>[] = new Array<LeanDocument<UserDoc>>();
 
-        users.forEach((userDoc, i, array) => {
-            let user = userDoc.toObject();
+        users.slice(skip, skip + limit).forEach((userDoc) => {
+            let user = userDoc;//.toObject();
             promises.push(countAuthorRefs<LeanDocument<UserDoc>>(Thread, 'threadCount', user._id, user));
             promises.push(countAuthorRefs<LeanDocument<UserDoc>>(Post, 'postCount', user._id, user));
-            response.push(user);
+            pagedUsers.push(user);
         });
 
-        Promise.all(promises).then(() => res.json(response), (err) => next(err));
-    })
+        Promise.all(promises).then(() => {
+            const response: UsersResponse = {
+                totalUsers: users.length,
+                index,
+                pageSize,
+                users: pagedUsers
+            }
+            console.log(response);
+            res.json(response);
+        }, (err) => next(err));
+    });
 }
 
 function createUser(req, res, next) {
@@ -76,19 +153,6 @@ function createUser(req, res, next) {
        res.json(user);
     });
 }
-
-// function updateName(req, res, next) {
-//     User.findById(req.params.id, {},{},(err, user) => {
-//         if (err)    return next(err);
-//
-//         user.name = req.body.name;
-//         user.save((err, user) => {
-//             if (err)     return next(err);
-//
-//             res.json({"token" : user.generateJwt()});
-//         });
-//     });
-// }
 
 function updateUser(req, res, next) {
     if (!req.payload._id)
@@ -144,12 +208,14 @@ function setProfileImage(req, res, next) {
 }
 
 function getProfileImage(req, res, next) {
+    if (!req.params.id)
+        return next({message: 'no user id specified'});
 
     const userId = req.params.id;
 
     /** First check if file exists */
     gfs.files.find({"metadata.user": userId }).toArray(function(err, files){
-        console.log(JSON.stringify(files));
+        if (err)    return next(err);
 
         if(!files || files.length === 0){
             return res.status(404).json({

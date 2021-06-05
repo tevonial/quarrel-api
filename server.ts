@@ -5,16 +5,19 @@ export {}
 const express = require('express');
 const errorHandler = require('./errorHandler');
 const http = require('http');
+const https = require('https')
 const path = require('path');
 const logger = require('morgan');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const passport = require('passport');
+const fs = require('fs')
 // const cors = require('cors');
 
 const app = express();
 
-const frontendPath = '../../MaterialQuarrel/dist/MaterialQuarrel';
+const frontendPath = (process.env.NODE_ENV === 'production') ? './MaterialQuarrel' : '../../MaterialQuarrel/dist/MaterialQuarrel';
+
 const port: number = Number(process.env.PORT) || 3001;
 
 // Enable CORS
@@ -50,5 +53,16 @@ app.get('/*', (req, res) => {
 app.use(errorHandler);
 
 // Start server
-const server = http.createServer(app);
+let server;
+
+if (process.env.NODE_ENV === 'production') {
+    const tlsCredentials = {
+        key: fs.readFileSync('./tls/tevonial_com.key'),
+        cert: fs.readFileSync('./tls/tevonial_com.crt')
+    };
+    server = https.createServer(tlsCredentials, app);
+} else {
+    server = http.createServer(app);
+}
+
 server.listen(port, () => console.log(`App running on: http://localhost:${port}`));

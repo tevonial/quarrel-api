@@ -16,11 +16,8 @@ const dbUri = require('./config/db').uri;
 const multer = require('multer');
 const GridFsStorage = require('multer-gridfs-storage');
 
-
-
 // MongoDb GridFs Connection, for retrievals
 let Grid = require('gridfs-stream');
-// const conn = mongoose.createConnection(mongoURI);
 const conn = mongoose.connection;
 let gfs;
 conn.once('open', function () {
@@ -32,7 +29,6 @@ userRouter.get('/:id/profile-image', getProfileImage);
 userRouter.get('/', getAllUsers);
 
 userRouter.post('/', createUser);
-// userRouter.put('/name/:id', updateName);
 userRouter.put('/:id/profile-image', jwtParse, setProfileImage);
 userRouter.put('/:id', jwtParse, updateUser);
 

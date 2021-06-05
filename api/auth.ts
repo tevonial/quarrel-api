@@ -11,7 +11,7 @@ authRouter.post('/login', login);
 authRouter.post('/register', register);
 
 
-module.exports = authRouter;
+module.exports.router = authRouter;
 
 
 function login (req, res, next) {

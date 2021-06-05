@@ -20,7 +20,7 @@ postRouter.put('/:id', jwtParse, editPost);
 
 postRouter.delete('/:id', jwtParse, deletePost);
 
-module.exports = postRouter;
+module.exports.router = postRouter;
 
 
 

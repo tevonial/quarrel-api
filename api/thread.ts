@@ -14,7 +14,7 @@ threadRouter.get('/:id', getThreadById);
 threadRouter.post('/', jwtParse, createThread);
 threadRouter.post('/:id/', replyToThread);
 
-module.exports = threadRouter;
+module.exports.router = threadRouter;
 
 function getThreads(req, res, next) {
     Thread.find()

@@ -32,7 +32,7 @@ userRouter.post('/', createUser);
 userRouter.put('/:id/profile-image', jwtParse, setProfileImage);
 userRouter.put('/:id', jwtParse, updateUser);
 
-module.exports = userRouter;
+module.exports.router = userRouter;
 
 
 

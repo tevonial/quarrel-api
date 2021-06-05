@@ -9,7 +9,7 @@ const Config = mongoose.model('Configuration');
 configRouter.get('/', getConfigurations);
 configRouter.post('/', replaceConfiguration);
 
-module.exports = configRouter;
+module.exports.router = configRouter;
 
 function getConfigurations(req, res, next) {
     Config.find({}, {}, {}, (err, settings: ConfigurationDoc[]) => {

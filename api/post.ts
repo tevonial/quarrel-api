@@ -204,48 +204,57 @@ function editPost(req, res, next) {
     })
 }
 
+export function recursiveDeletePost(postId: string, topLevel= true): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+        // Find post to delete
+        Post.findOne({_id: postId} ,{},{},(err, post) => {
+
+            // Delete all child posts
+            if (post.children.length > 0) {
+                post.children.forEach((c) => {
+                    recursiveDeletePost(c._id, false);
+                });
+
+                // Post.deleteMany({_id: { $in: childrenId}}, {}, (err) => {
+                //     if (err)    return err;
+                // });
+            }
+
+            if (topLevel) {
+                // Find parent post
+                Post.findOne({_id: post.parent}, {}, {}, (err, parent) => {
+
+                    // Remove reference from parent post
+                    parent.children = parent.children.filter((c) => !c._id.equals(post._id));
+
+                    parent.save((err) => {
+                        if (err)    return reject(err);
+
+                        // Remove post
+                        post.remove({}, (err) => {
+                            if (err)    return reject(err);
+
+                            return resolve(true);
+                        });
+                    });
+                });
+            } else {
+                // Remove post
+                post.remove({}, (err) => {
+                    if (err)    return reject(err);
+
+                    return resolve(true);
+                });
+            }
+        });
+    });
+}
+
 function deletePost(req, res, next) {
     if (!req.payload._id)
         return next({message: "Cannot delete post - not logged in"});
 
-    // Find post to delete
-    Post.findById(req.params.id,{},{},(err, post) => {
-        if (post.author._id == req.payload._id || req.payload.role == 'admin') {
-
-            // Delete all child posts
-            if (post.children.length > 0) {
-                const childrenId = [];
-                post.children.forEach(p => childrenId.push(p._id));
-                console.log(`children: ${JSON.stringify(childrenId)}`);
-
-                Post.deleteMany({_id: { $in: childrenId}}, {}, (err) => {
-                    if (err)    return next(err);
-                });
-            }
-
-            // Find parent post
-            Post.findById(post.parent, {}, {}, (err, parent) => {
-
-                // Remove reference from parent post
-                parent.children = parent.children.filter(c => c._id !== post._id)
-                parent.save((err) => {
-                    if (err)    return next(err);
-
-                    // Remove post
-                    post.remove({}, (err) => {
-                        if (err)    return next(err);
-
-                        return res.send(true);
-                    });
-                })
-            })
-
-            // post.remove({}, (err, result) => {
-            //     return res.send(true);
-            // });
-        } else {
-            res.status(500).send(false);
-            return next({message: "Cannot delete post - not authorized"});
-        }
+    recursiveDeletePost(req.params.id).then((result) => {
+        res.json({success: result});
     });
 }

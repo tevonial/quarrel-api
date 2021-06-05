@@ -41,6 +41,14 @@ postSchema.virtual('childs', {
     foreignField: 'parent',
 })
 
+/**
+ * Populates posts with the following:
+ * - author's user schema as sub-document
+ * - child posts
+ *
+ * This function is recursive and creates a tree-like post structure as child posts are populated.
+ * @param next
+ */
 const autoPopulatePosts = function (next) {
     // this.populate('children');
     this.populate([{
@@ -57,5 +65,7 @@ const updateDate = function (next) {
 }
 
 postSchema.pre('find', autoPopulatePosts);
+postSchema.pre('findOne', autoPopulatePosts);
+
 
 mongoose.model('Post', postSchema);

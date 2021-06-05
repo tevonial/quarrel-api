@@ -5,7 +5,6 @@ import {PostDoc} from "./model/post.model";
 const jwtParse = require('./config/jwt-parse');
 const postRouter = Router();
 const Post = mongoose.model<PostDoc>('Post');
-const Thread = mongoose.model('Thread');
 
 postRouter.get('/', getPosts);
 postRouter.get('/:id', getPostById);
@@ -204,7 +203,7 @@ function editPost(req, res, next) {
     })
 }
 
-export function recursiveDeletePost(postId: string, topLevel= true): Promise<boolean> {
+export function recursiveDeletePost(postId: string, removeParentRef= true): Promise<boolean> {
     return new Promise((resolve, reject) => {
         // Find post to delete
         Post.findOne({_id: postId} ,{},{},(err, post) => {
@@ -220,7 +219,7 @@ export function recursiveDeletePost(postId: string, topLevel= true): Promise<boo
                 // });
             }
 
-            if (topLevel) {
+            if (removeParentRef) {
                 // Find parent post
                 Post.findOne({_id: post.parent}, {}, {}, (err, parent) => {
 

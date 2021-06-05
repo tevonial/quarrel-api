@@ -1,7 +1,7 @@
 import * as mongoose from 'mongoose';
 import { Router } from "express";
 import {ThreadDoc} from "./model/thread.model";
-import {PostDoc} from "./model/post.model";
+import {recursiveDeletePost} from "./post";
 
 const threadRouter = Router();
 const Thread = mongoose.model<ThreadDoc>('Thread');
@@ -12,7 +12,7 @@ threadRouter.get('/', getThreads);
 threadRouter.get('/:id', getThreadById);
 
 threadRouter.post('/', jwtParse, createThread);
-threadRouter.post('/:id/', replyToThread);
+threadRouter.delete('/:id', jwtParse, deleteThread);
 
 module.exports.router = threadRouter;
 
@@ -74,19 +74,20 @@ function createThread(req, res, next) {
      });
 }
 
-function replyToThread(req, res, next) {
-    Post.create(req.body, (err, post) => {
-        if (err)    next(err);
-
-        res.json(post);
-    });
-}
-
 function deleteThread(req, res, next) {
     if (!req.payload._id)
         return next({message: 'Cannot delete thread - not logged in'});
 
     Thread.findById(req.params.id).then((thread: ThreadDoc) => {
 
+        recursiveDeletePost(String(thread.post), false).then(() => {
+            thread.remove().then((result) => {
+                res.json({success: true})
+            }, () => {
+                next({message: 'Error deleting thread'});
+            });
+        }, () => {
+            next({message: 'Error deleting thread'});
+        });
     })
 }

@@ -28,7 +28,7 @@ const postSchema  = new Schema<PostDoc>({
     title: {required: false, type: String},
     author: {type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     body: String,
-    topLevel: {type: Boolean, required: true, default: false},
+    threadRoot: {type: Boolean, required: true, default: false},
     parent: {type: mongoose.Schema.Types.ObjectId, ref: 'Post' },
     children: [{type: mongoose.Schema.Types.ObjectId, ref: 'Post'}]
 }, {

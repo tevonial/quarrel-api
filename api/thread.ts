@@ -57,7 +57,7 @@ function createThread(req, res, next) {
             thread: mongoose.Types.ObjectId(thread._id),
             // thread: thread._id,
             body: req.body.body,
-            topLevel: true
+            threadRoot: true
         }
 
         Post.create(newPost, (err, post) => {

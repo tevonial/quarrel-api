@@ -4,6 +4,7 @@ import {UserDoc} from "./model/user.model";
 import {ThreadDoc} from "./model/thread.model";
 import {PostDoc} from "./model/post.model";
 import {LeanDocument} from "mongoose";
+import ThumbnailStorageEngine from "./config/thumbnail-storage-engine";
 
 const userRouter = Router();
 const User = mongoose.model<UserDoc>('User');
@@ -21,11 +22,13 @@ let Grid = require('gridfs-stream');
 const conn = mongoose.connection;
 let gfs;
 conn.once('open', function () {
-    gfs = new Grid(conn.db, mongoose.mongo);
-    gfs.collection('profileImages'); //set collection name to lookup into
+    gfs = Grid(conn.db, mongoose.mongo);
+    gfs.collection('profileImages'); // set collection name
 })
 
-userRouter.get('/:id/profile-image', getProfileImage);
+userRouter.get('/:id/profile-image', getProfileImg({thumb: false}));
+userRouter.get('/:id/profile-image/thumb', getProfileImg({thumb: true}));
+userRouter.get('/:id/', getUser);
 userRouter.get('/', getAllUsers);
 
 userRouter.post('/', createUser);
@@ -81,6 +84,7 @@ function getAllUsers(req, res, next) {
         console.log('catched while trying to destructure postQuery');
         ({search, searchBy} = {search: "", searchBy: searchByTypes[0]});
     }
+
 
     // Destructure pageOptions
     let index, pageSize;
@@ -142,6 +146,17 @@ function getAllUsers(req, res, next) {
     });
 }
 
+function getUser(req, res, next) {
+    if (!req.params.id)
+        return next({message: "No userId specified"});
+
+    User.findById(req.params.id).exec((err, user) => {
+        if (err)    return next(err);
+
+        res.json(user);
+    })
+}
+
 function createUser(req, res, next) {
     User.create(req.body, (err, user) => {
        if (err)     return next(err);
@@ -178,53 +193,102 @@ function setProfileImage(req, res, next) {
 
     const userId = req.params.id;
 
+
+    /**
+     * Delete all previous uploads by same user.
+     */
+
     gfs.files.find({"metadata.user": userId }).toArray((err, files) => {
+        if (err)
+            return next(err);
+
         if (files && files.length > 0) {
-            gfs.remove()
+            files.forEach((file) => {
+                console.log('removing file id ' + file._id);
+                gfs.remove({_id: file._id, root: 'profileImages'}, (err) => {
+                    if (err)    console.log('err');
+                });
+            });
         }
     })
 
 
-    const storage = GridFsStorage({
-        url: dbUri,
-        file: (req, file) => {
-            return {
-                metadata: { filename: file.originalname, user: req.params.id },
-                bucketName: "profileImages"
-            }
-        }
+    /**
+     * Using ThumbnailStorageEngine to store image and a thumbnail of specified width.
+     */
+
+    const thumbnailStorage = ThumbnailStorageEngine({
+        conn: mongoose.connection,
+        collection: 'profileImages',
+        userId,
+        width: 250
     });
 
-    multer({storage: storage}).single('image')(req, res, (err) => {
+    multer({storage: thumbnailStorage}).single(('image'))(req, res, (err) => {
         if (err)    return next(err);
 
-        console.log(JSON.stringify(req.body));
-        res.status(200).send();
-    });
+        res.send(`uploaded file ${JSON.stringify(req.file)}`);
+    })
+
+    /**
+     * Using memoryStorage and sharp to resize image and pipe back to response stream
+     */
+
+    // multer({storage: multer.memoryStorage()}).single('image')(req, res, (err) => {
+    //     if (err)    return next(err);
+    //
+    //     console.log(req.file.buffer.length);
+    //     gfs.collection('profileImages');
+    //     let writeStream = gfs.createWriteStream({filename: req.file.filename, root: 'profileImages'});
+    //
+    //     sharp(req.file.buffer).resize(500).pipe(writeStream);
+    // });
+
+    /**
+     * Using GridFsStorage to store image full size
+     */
+
+    // const storage = GridFsStorage({
+    //     url: dbUri,
+    //     file: (req, file) => {
+    //         return {
+    //             metadata: { filename: file.originalname, user: req.params.id },
+    //             bucketName: "profileImages"
+    //         }
+    //     }
+    // });
+
+    // multer({storage: storage}).single('image')(req, res, (err) => {
+    //     if (err)    return next(err);
+    //
+    //     res.status(200).send();
+    // });
 }
 
-function getProfileImage(req, res, next) {
-    if (!req.params.id)
-        return next({message: 'no user id specified'});
+function getProfileImg(config) {
+    return function (req, res, next) {
+        if (!req.params.id)
+            return next({message: 'no user id specified'});
 
-    const userId = req.params.id;
+        const userId = req.params.id;
 
-    /** First check if file exists */
-    gfs.files.find({"metadata.user": userId }).toArray(function(err, files){
-        if (err)    return next(err);
+        /** First check if file exists */
+        gfs.files.find({"metadata.user": userId , "metadata.thumb": config.thumb}).toArray(function(err, files){
+            if (err)    return next(err);
 
-        if(!files || files.length === 0){
-            return res.status(404).json({
-                responseCode: 1,
-                responseMessage: "No files found"
-            });
-        }
-        // create read stream
-        const readstream = gfs.createReadStream({filename: files[0].filename});
-        // set the proper content type
-        res.set('Content-Type', files[0].contentType);
-        res.set('Content-Disposition: attachment; filename=\"' + files[0].filename + '\"');
-        // Return response
-        return readstream.pipe(res);
-    });
+            if(!files || files.length === 0){
+                return res.status(404).json({
+                    responseCode: 1,
+                    responseMessage: "No files found"
+                });
+            }
+            // create read stream
+            const readstream = gfs.createReadStream({filename: files[0].filename});
+            // set the proper content type
+            res.set('Content-Type', files[0].contentType);
+            res.set('Content-Disposition: attachment; filename=\"' + files[0].filename + '\"');
+            // Return response
+            return readstream.pipe(res);
+        });
+    }
 }

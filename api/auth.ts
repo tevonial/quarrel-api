@@ -5,8 +5,9 @@ const passport = require('passport');
 
 const authRouter = Router();
 const User = mongoose.model('User');
+const jwtParse = require('./config/jwt-parse');
 
-authRouter.post('/:id/password', setPassword);
+authRouter.put('/:id/password', jwtParse, setPassword);
 authRouter.post('/login', login);
 authRouter.post('/register', register);
 
@@ -71,15 +72,26 @@ function saveUser(user, res, next) {
 }
 
 function setPassword(req, res, next) {
-    const pass = req.body.password;
+    if (!req.payload._id)
+        return next({message: "Cannot set password - not signed in"});
+
+    if ( !(req.payload._id === req.params.id || req.payload.role === 'admin') )
+        return next({message: "Cannot set password - not authorized"})
+
+    const {currentPassword, newPassword} = req.body;
 
     User.findById(req.params.id, (err, user) => {
-        if (err) return next(err);
+        if (err)
+            return next(err);
 
-        user.setPassword(pass);
+        if (!user.validPassword(currentPassword))
+            return  next({message: "Current password incorrect"});
+
+        user.setPassword(newPassword);
         user.save().then(() => {
-            res.json(user);
+            res.json({success: true});
         }, (err) => {
+            res.json({success: false})
             return next(err);
         });
     });

@@ -286,7 +286,8 @@ function getProfileImg(config) {
             const readstream = gfs.createReadStream({filename: files[0].filename});
             // set the proper content type
             res.set('Content-Type', files[0].contentType);
-            res.set('Content-Disposition: attachment; filename=\"' + files[0].filename + '\"');
+            res.set('Content-Disposition', 'filename=\"' + files[0].filename + '\"');
+            // res.set('Content-Disposition', 'attachment; filename=\"' + files[0].filename + '\"');
             // Return response
             return readstream.pipe(res);
         });

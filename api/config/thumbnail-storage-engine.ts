@@ -19,7 +19,8 @@ type Options = {
 
 const defaultNameFn: nameFnType = (_req: Request, file: Express.Multer.File) => {
     const timestamp = Date.now();
-    const fileExt = path.extname(file.originalname);
+    // const fileExt = path.extname(file.originalname);
+    const fileExt = '.png';
 
     return {
         fullSize: `${file.fieldname}_${timestamp}${fileExt}`,
@@ -61,6 +62,8 @@ class ThumbnailStorageEngine implements multer.StorageEngine {
         const filenames = this.nameFn(req, file);
 
         const writeStreamOptions = (filename: string, thumb: boolean) => {
+            console.log('type ' + file.mimetype);
+
             return {
                 filename,
                 root: this.collection,
@@ -73,37 +76,51 @@ class ThumbnailStorageEngine implements multer.StorageEngine {
             }
         }
 
-        const fullReadStream = new ReadableStreamClone(file.stream);
-        const fullWriteStream = this.gfs.createWriteStream(writeStreamOptions(filenames.fullSize, false));
+        const fullWriter = new Promise<string>((resolve, reject) => {
+            const fullReadStream = new ReadableStreamClone(file.stream);
+            const fullWriteStream = this.gfs.createWriteStream(writeStreamOptions(filenames.fullSize, false));
 
-        const thumbReadStream = new ReadableStreamClone(file.stream);
-        const thumbWriteStream = this.gfs.createWriteStream(writeStreamOptions(filenames.thumb, true));
+            fullReadStream
+                .pipe(fullWriteStream)
+                .on("error", (err) => {
+                    if (err !== undefined) {
+                        fullWriteStream.end();
+                        console.log('full stream error: ' + err);
+                    }
+                })
+                .on("finish", () => {
+                    resolve(filenames.fullSize);
+                });
+        });
 
+        const thumbWriter = new Promise<string>((resolve, reject) => {
+            const thumbReadStream = new ReadableStreamClone(file.stream);
+            const thumbWriteStream = this.gfs.createWriteStream(writeStreamOptions(filenames.thumb, true));
 
-        fullReadStream
-            .pipe(fullWriteStream)
-            .on("error", (err) => {
-                fullWriteStream.end();
-                // storageFile.delete({ ignoreNotFound: true });
-                callback(err);
+            let resizeTransform = sharp().resize(this.width);
+
+            thumbReadStream
+                .pipe(resizeTransform)
+                .pipe(thumbWriteStream)
+                .on("error", (err) => {
+                    if (err !== undefined) {
+                        thumbWriteStream.end();
+                        console.log('thumb stream error: ' + err);
+                    }
+                })
+                .on("finish", () => {
+                    resolve(filenames.thumb);
+                });
+        });
+
+        Promise.all([fullWriter, thumbWriter])
+            .then((response) => {
+                console.log("HHH " + JSON.stringify(response));
+                callback(null, {filename: response[0]});
             })
-            .on("finish", () => {
-                console.log(`finished ${filenames}`)
-                callback(null, { filename: filenames.fullSize });
-            });
-
-        let resizeTransform = sharp().resize(this.width);
-
-        thumbReadStream
-            .pipe(resizeTransform)
-            .pipe(thumbWriteStream)
-            .on("error", (err) => {
-                thumbWriteStream.end();
-                callback(err)
-            })
-            .on("finish", () => {
-                console.log("saved thumbnail");
-                callback(null, {filename: filenames.fullSize});
+            .catch((error) => {
+                console.log("FFF" + JSON.stringify(error));
+                callback(error);
             });
     };
 

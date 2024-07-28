@@ -7,3 +7,10 @@
 
 # JSON Web Token Secret
 /api/config/jwt.ts
+
+# JetBrains
+.idea/
+
+
+dist/
+package-lock.json

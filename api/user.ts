@@ -221,13 +221,14 @@ function setProfileImage(req, res, next) {
         conn: mongoose.connection,
         collection: 'profileImages',
         userId,
-        width: 250
+        width: 90
     });
 
     multer({storage: thumbnailStorage}).single(('image'))(req, res, (err) => {
         if (err)    return next(err);
 
-        res.send(`uploaded file ${JSON.stringify(req.file)}`);
+        // return res.status(200).send(`uploaded file ${JSON.stringify(req.file)}`);
+        return res.status(200).send(JSON.stringify(req.file.filename));
     })
 
     /**
@@ -269,6 +270,9 @@ function getProfileImg(config) {
     return function (req, res, next) {
         if (!req.params.id)
             return next({message: 'no user id specified'});
+
+        if (!gfs)
+            return next({message: 'cannot retrieve image - database not connected'});
 
         const userId = req.params.id;
 
